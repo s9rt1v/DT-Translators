@@ -18,3 +18,7 @@ Furthermore, if you haven't used python and there are some errors related to num
 pip3 install numpy
 pip3 install pandas
 </pre>
+Moreover, for model_translator, due to some syntax restriction of SQL and Cypher, the name of table are wrapped in "" e.g. "Product", please be aware of it when you try to test in your database after transformation.
+And for query translator, please add label at least once for the symbol of node and edge to make sure the correct output of result due to the weakness of SQL.
+e.g. MATCH (a:Account {isBlocked:'no'}) −[:isLocatedIn]−>(g:City {name:'Ankh−Morpork'}) <−[:isLocatedIn]−(b:Account {isBlocked:'yes'}), p = (a)−[e:Transfer*2]−>(b) WHERE e.amount> 100 RETURN a.owner, b.owner LIMIT 10
+for you can remove symbol like isLocatedIn edge but you should add label for each symbol at least once such as a,b,e,g
