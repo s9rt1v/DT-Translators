@@ -193,6 +193,10 @@ class CypherToSqlVisitor(CypherVisitor):
         limit = ctx.getText()
         self.rt = self.rt + limit + " "
         return self.visitChildren(ctx)
+
+    def visitOC_Skip(self, ctx:CypherParser.OC_SkipContext):
+        skip = ctx.getText()
+        self.rt = self.rt + skip + " "
     
     def visitOC_Order(self, ctx:CypherParser.OC_OrderContext):
         self.rt = self.rt + ctx.getText() + " "
