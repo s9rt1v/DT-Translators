@@ -25,3 +25,5 @@ e.g. MATCH (a:Account {isBlocked:'no'}) −[:isLocatedIn]−>(g:City {name:'Ankh
 </pre>
 
 for you can remove symbol like isLocatedIn edge but you should add label for each symbol at least once such as a,b,e,g
+
+The oC_Cypher2.pdf can be used to check the more concrete detail and information of the string tree of Cypher parser
