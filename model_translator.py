@@ -306,4 +306,5 @@ def translator(graph):
             properties = get_edge_property_names(graph,e_label['e_label'])
             edge_table_creator(graph,properties,e_label)
             edge_data_transformer(graph,properties,e_label)
+    print("Translation Complete!!!")
     conn.close()
