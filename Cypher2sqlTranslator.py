@@ -150,10 +150,10 @@ class CypherToSqlVisitor(CypherVisitor):
                         if table_name not in self.tables:
                             self.tables.append(table_name)
         relation = ctx.getText()
-        if '>' in relation:
-            relation_dict['direction'] = '>'
-        elif '<' in relation:
+        if ctx.oC_LeftArrowHead():
             relation_dict['direction'] = '<'
+        elif ctx.oC_RightArrowHead():
+            relation_dict['direction'] = '>'
         relation_dict['index'] = self.element_chain_count
         self.edges.append(relation_dict)
         if ctx.oC_RelationshipDetail().oC_Properties():
