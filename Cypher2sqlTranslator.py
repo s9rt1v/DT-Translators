@@ -28,6 +28,7 @@ class CypherToSqlVisitor(CypherVisitor):
         self.isRecursive = False
         self.recursiveEdge = []
         self.rangeList = []
+        self.path_name = 'temp_query'
 
     #def visitOC_ReadingClause(self, ctx:CypherParser.OC_ReadingClauseContext):
         
@@ -42,6 +43,8 @@ class CypherToSqlVisitor(CypherVisitor):
             self.element_chain_count += 1
         #if self.pattern_count > 1:
             #self.pattern[self.pattern_count] += 'UNION ALL '
+        if ctx.oC_Variable():
+            self.path_name = ctx.oC_Variable().getText()
         
         return self.visitChildren(ctx)
     
@@ -149,7 +152,7 @@ class CypherToSqlVisitor(CypherVisitor):
                         table_name = f"{relation_dict['label'][-1]} {relation_dict['name'][-1]}"
                         if table_name not in self.tables:
                             self.tables.append(table_name)
-        relation = ctx.getText()
+
         if ctx.oC_LeftArrowHead():
             relation_dict['direction'] = '<'
         elif ctx.oC_RightArrowHead():
@@ -183,17 +186,15 @@ class CypherToSqlVisitor(CypherVisitor):
     # Visit a parse tree produced by CypherParser#oC_Return.
     def visitOC_Return(self, ctx: CypherParser.OC_ReturnContext):
         items = ctx.oC_ProjectionBody().oC_ProjectionItems().getText()
-        if 'DISTINCT' in ctx.oC_ProjectionBody().getText(): 
-            self.select = f'SELECT DISTINCT {items} '
-        else:
-            self.select = f'SELECT {items} '
+        
+        self.select = f'SELECT DISTINCT {items} '
         return self.visitChildren(ctx)
 
     def visitOC_Limit(self, ctx:CypherParser.OC_LimitContext):
         limit = ctx.getText()
         self.rt = self.rt + limit + " "
         return self.visitChildren(ctx)
-
+    
     def visitOC_Skip(self, ctx:CypherParser.OC_SkipContext):
         skip = ctx.getText()
         self.rt = self.rt + skip + " "
@@ -280,29 +281,20 @@ class CypherToSqlVisitor(CypherVisitor):
                     edge_name = edge['name']
                     node_s = edge['start']
                     node_t = edge['end']
-                    self.recursive_select = f"{self.recursive_select} {edge_name}.\"{node_s['label']}(s)\" AS start, {edge_name}.\"{node_t['label']}(t)\" AS \"end\", ARRAY[{edge_name}.\"{node_s['label']}(s)\",{edge_name}.\"{node_t['label']}(t)\"] AS path, 0 AS depth"
+                    self.recursive_select = f"{self.recursive_select} {edge_name}.\"{node_s['label']}(s)\" AS start, {edge_name}.\"{node_t['label']}(t)\" AS \"end\", ARRAY[{edge_name}.\"{node_s['label']}(s)\",{edge_name}.\"{node_t['label']}(t)\"] AS path, 1 AS depth"
                     if 'properties' in list(edge.keys()):
                         for p in edge['properties']:
                             if self.recursive_where == '':
                                 self.recursive_where = f"WHERE {edge_name}.{p['key']} = {p['value']}"
                             else:
                                 self.recursive_where = f"{self.recursive_where} AND {edge_name}.{p['key']} = {p['value']}"
-                    self.recursion = f"SELECT {edge_name}.\"{node_s['label']}(s)\", temp_query.\"end\", ARRAY[temp_query.\"end\",{edge_name}.\"{node_s['label']}(s)\"], temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.end = {edge_name}.\"{node_s['label']}(s)\""
+                    self.recursion = f"SELECT temp_query.\"end\",{edge_name}.\"{node_s['label']}(t)\",  temp_query.path || {edge_name}.\"{node_s['label']}(t)\", temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.\"end\" = {edge_name}.\"{node_s['label']}(s)\""
                     if len(self.rangeList)>1:
                         if self.rangeList[1]:
-                            self.recursion = f"{self.recursion} AND temp_query.depth < {self.rangeList[1]}"
+                            self.recursion = f"{self.recursion} AND temp_query.depth <= {self.rangeList[1]}"
                     elif self.rangeList:
-                        self.recursion = f"{self.recursion} AND temp_query.depth < {self.rangeList[0]}"
+                        self.recursion = f"{self.recursion} AND temp_query.depth <= {self.rangeList[0]}"
                         
-                    
-    def recursiveFromAdjustor(self):
-        
-        tables = self.from_clause.split(",")
-
-        for table in tables:
-            for edge in self.recursiveEdge:
-                if f"\"{edge['label']}\" {edge['name']}" in table:
-                    tables.remove(table)
             
     def recursiveWhereAdjustor(self):
         conditions =  self.where_clause.split("AND")
@@ -325,28 +317,28 @@ class CypherToSqlVisitor(CypherVisitor):
             self.where_clause = 'WHERE' + self.where_clause
         node_s_name = self.recursiveEdge[0]['start']['name']
         node_t_name = self.recursiveEdge[0]['end']['name']
-        s = f"{node_s_name}.ID = temp_query.\"start\" AND {node_t_name}.ID = temp_query.\"end\""
+        s = f"{node_s_name}.ID = {self.path_name}.path[1] AND {node_t_name}.ID = {self.path_name}.path[{self.path_name}.depth+1]"
         depth_judger = ''
         if len(self.rangeList)>1:
             if self.rangeList[0]:
-                depth_judger = f" AND temp_query.depth >= {self.rangeList[0]}"
+                depth_judger = f" AND {self.path_name}.depth >= {self.rangeList[0]}"
             if self.rangeList[1]:
-                depth_judger = f"{depth_judger} AND temp_query.depth <= {self.rangeList[1]}"
+                depth_judger = f"{depth_judger} AND {self.path_name}.depth <= {self.rangeList[1]}"
         elif self.rangeList:
-            depth_judger = f" AND temp_query.depth = {self.rangeList[0]}"
+            depth_judger = f" AND {self.path_name}.depth = {self.rangeList[0]}"
         s += depth_judger
         if self.where_clause == '':
             self.where_clause = f"WHERE {s}"
         else:
             self.where_clause = f"{self.where_clause} AND {s}"
+            
     def recursiveConstructor(self):
         self.conditionAdder()
         self.fromAdder()
         self.selectAdder()
-        self.recursiveFromAdjustor()
         self.recursiveWhereAdjustor()
         self.non_recursion = f"{self.recursive_select} FROM \"{self.recursiveEdge[0]['label']}\" {self.recursiveEdge[0]['name']} {self.recursive_where}"
-        self.rt = f"{self.select}{self.from_clause}, recursive_query temp_query{self.where_clause}{self.rt}"
+        self.rt = f"{self.select}{self.from_clause}, recursive_query {self.path_name} {self.where_clause}{self.rt}"
         self.sql = f"{self.sql}({self.non_recursion} UNION ALL {self.recursion}) {self.rt}"
         
     def getSql(self):
