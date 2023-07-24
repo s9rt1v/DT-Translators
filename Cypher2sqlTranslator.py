@@ -356,7 +356,7 @@ class CypherToSqlVisitor(CypherVisitor):
             self.recursiveConstructor()
         return print(self.sql.strip())
 
-def translator(query):
+def query_translator(query):
     if 'UNION ALL' in query:
         new_query = query.split('UNION ALL')
         for i in range(len(new_query)):
