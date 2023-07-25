@@ -283,14 +283,14 @@ class CypherToSqlVisitor(CypherVisitor):
                     edge_name = edge['name']
                     node_s = edge['start']
                     node_t = edge['end']
-                    self.recursive_select = f"{self.recursive_select} {edge_name}.\"{node_s['label']}(s)\" AS start, {edge_name}.\"{node_t['label']}(t)\" AS \"end\", ARRAY[{edge_name}.\"{node_s['label']}(s)\",{edge_name}.\"{node_t['label']}(t)\"] AS path, 1 AS depth"
+                    self.recursive_select = f"{self.recursive_select} {edge_name}.\"{node_s['label']}(s)\" AS start, {edge_name}.\"{node_t['label']}(t)\" AS \"end\", ARRAY[{edge_name}.\"{node_s['label']}(s)\",{edge_name}.ID,{edge_name}.\"{node_t['label']}(t)\"] AS path, 1 AS depth"
                     if 'properties' in list(edge.keys()):
                         for p in edge['properties']:
                             if self.recursive_where == '':
                                 self.recursive_where = f"WHERE {edge_name}.{p['key']} = {p['value']}"
                             else:
                                 self.recursive_where = f"{self.recursive_where} AND {edge_name}.{p['key']} = {p['value']}"
-                    self.recursion = f"SELECT temp_query.\"end\",{edge_name}.\"{node_s['label']}(t)\",  temp_query.path || {edge_name}.\"{node_s['label']}(t)\", temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.\"end\" = {edge_name}.\"{node_s['label']}(s)\""
+                    self.recursion = f"SELECT temp_query.\"end\",{edge_name}.\"{node_s['label']}(t)\",  temp_query.path || ARRAY[{edge_name}.ID,{edge_name}.\"{node_s['label']}(t)\"], temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.\"end\" = {edge_name}.\"{node_s['label']}(s)\""
                     if len(self.rangeList)>1:
                         if self.rangeList[1]:
                             self.recursion = f"{self.recursion} AND temp_query.depth <= {self.rangeList[1]}"
@@ -333,7 +333,7 @@ class CypherToSqlVisitor(CypherVisitor):
             self.where_clause = 'WHERE' + self.where_clause
         node_s_name = self.recursiveEdge[0]['start']['name']
         node_t_name = self.recursiveEdge[0]['end']['name']
-        s = f"{node_s_name}.ID = {self.path_name}.path[1] AND {node_t_name}.ID = {self.path_name}.path[{self.path_name}.depth+1]"
+        s = f"{node_s_name}.ID = {self.path_name}.path[1] AND {node_t_name}.ID = {self.path_name}.path[{self.path_name}.depth*2+1]"
         depth_judger = ''
         if len(self.rangeList)>1:
             if self.rangeList[0]:
