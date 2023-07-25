@@ -333,11 +333,13 @@ class CypherToSqlVisitor(CypherVisitor):
         for condition in conditions:
             for edge in self.recursiveEdge:
                 len_name = len(edge['name'])
-                if f" {edge['name']}." == condition[:len_name+2]:
-                    if self.recursive_where == '':
-                        self.recursive_where = f"WHERE{condition}"
-                    else:
-                        self.recursive_where = f"{self.recursive_where} AND{condition}"
+                if f" {edge['name']}." in condition:
+                    
+                    if not condition in self.recursive_where:
+                        if self.recursive_where == '':
+                            self.recursive_where = f"WHERE{condition}"
+                        else:
+                            self.recursive_where = f"{self.recursive_where} AND{condition}"
                     conditions.remove(condition)
         for condition in conditions:
             if 'WHERE' in condition:
