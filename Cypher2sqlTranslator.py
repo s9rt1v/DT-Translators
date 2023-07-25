@@ -168,6 +168,7 @@ class CypherToSqlVisitor(CypherVisitor):
     def visitOC_RangeLiteral(self, ctx:CypherParser.OC_RangeLiteralContext):
         self.isRecursive = True
         self.edges[-1]['range'] = ctx.getText().split('*')[1]
+        self.recursiveEdge.append(self.edges[-1])
         return self.visitChildren(ctx)
     
     def visitOC_NodeLabel(self, ctx:CypherParser.OC_NodePatternContext):
@@ -187,9 +188,23 @@ class CypherToSqlVisitor(CypherVisitor):
     def visitOC_Return(self, ctx: CypherParser.OC_ReturnContext):
         items = ctx.oC_ProjectionBody().oC_ProjectionItems().getText()
         if 'DISTINCT' in ctx.oC_ProjectionBody().getText():
-            self.select = f'SELECT DISTINCT {items} '
+            self.select = 'SELECT DISTINCT '
         else:
-            self.select = f'SELECT {items} '
+            self.select = 'SELECT '
+        for item in ctx.oC_ProjectionBody().oC_ProjectionItems().oC_ProjectionItem():
+            name = item.oC_Expression().getText()
+            val = ''
+            if self.recursiveEdge[0]:
+                if name == self.recursiveEdge[0]['name']:
+                    name = f"{self.path_name}.edge"
+                elif name == self.path_name:
+                    name = f"{self.path_name}.path"
+            if item.oC_Variable():
+                val = f' AS {item.oC_Variable().getText()}'
+            if self.select == 'SELECT ' or self.select == 'SELECT DISTINCT ':
+                self.select = f"{self.select}{name}{val} "
+            else:
+                self.select = f"{self.select}, {name}{val} "
         return self.visitChildren(ctx)
 
     def visitOC_Limit(self, ctx:CypherParser.OC_LimitContext):
@@ -272,7 +287,7 @@ class CypherToSqlVisitor(CypherVisitor):
         for edge in self.edges:
             if edge:
                 if 'range' in list(edge.keys()):
-                    self.recursiveEdge.append(edge)
+                    self.recursiveEdge[0]=edge
                     if '..' in edge['range']:
                         temp = edge['range'].split('..')
                         if not temp[0]:
@@ -283,14 +298,14 @@ class CypherToSqlVisitor(CypherVisitor):
                     edge_name = edge['name']
                     node_s = edge['start']
                     node_t = edge['end']
-                    self.recursive_select = f"{self.recursive_select} {edge_name}.\"{node_s['label']}(s)\" AS start, {edge_name}.\"{node_t['label']}(t)\" AS \"end\", ARRAY[{edge_name}.\"{node_s['label']}(s)\",{edge_name}.ID,{edge_name}.\"{node_t['label']}(t)\"] AS path, 1 AS depth"
+                    self.recursive_select = f"{self.recursive_select} {edge_name}.\"{node_s['label']}(s)\" AS start, {edge_name}.\"{node_t['label']}(t)\" AS \"end\",ARRAY[{edge_name}] AS edge, ARRAY[{edge_name}.\"{node_s['label']}(s)\",{edge_name}.ID,{edge_name}.\"{node_t['label']}(t)\"] AS path, 1 AS depth"
                     if 'properties' in list(edge.keys()):
                         for p in edge['properties']:
                             if self.recursive_where == '':
                                 self.recursive_where = f"WHERE {edge_name}.{p['key']} = {p['value']}"
                             else:
                                 self.recursive_where = f"{self.recursive_where} AND {edge_name}.{p['key']} = {p['value']}"
-                    self.recursion = f"SELECT temp_query.\"end\",{edge_name}.\"{node_s['label']}(t)\",  temp_query.path || ARRAY[{edge_name}.ID,{edge_name}.\"{node_s['label']}(t)\"], temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.\"end\" = {edge_name}.\"{node_s['label']}(s)\""
+                    self.recursion = f"SELECT temp_query.\"end\",{edge_name}.\"{node_s['label']}(t)\", temp_query.edge||{edge_name} ,temp_query.path || ARRAY[{edge_name}.ID,{edge_name}.\"{node_s['label']}(t)\"], temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.\"end\" = {edge_name}.\"{node_s['label']}(s)\""
                     if len(self.rangeList)>1:
                         if self.rangeList[1]:
                             self.recursion = f"{self.recursion} AND temp_query.depth <= {self.rangeList[1]}"
@@ -347,7 +362,8 @@ class CypherToSqlVisitor(CypherVisitor):
             self.where_clause = f"WHERE {s}"
         else:
             self.where_clause = f"{self.where_clause} AND {s}"
-            
+    
+                    
     def recursiveConstructor(self):
         self.conditionAdder()
         self.fromAdder()
@@ -355,6 +371,7 @@ class CypherToSqlVisitor(CypherVisitor):
         self.recursiveFromAdjustor()
         self.recursiveWhereAdjustor()
         self.non_recursion = f"{self.recursive_select} FROM \"{self.recursiveEdge[0]['label']}\" {self.recursiveEdge[0]['name']} {self.recursive_where}"
+
         self.rt = f"{self.select}{self.from_clause}, recursive_query {self.path_name} {self.where_clause}{self.rt}"
         self.sql = f"{self.sql}({self.non_recursion} UNION ALL {self.recursion}) {self.rt}"
         
