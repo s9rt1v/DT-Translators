@@ -307,4 +307,165 @@ def translator(graph):
             edge_table_creator(graph,properties,e_label)
             edge_data_transformer(graph,properties,e_label)
     print("Translation Complete!!!")
-    conn.close()
+
+def completeness_evaluation(graph_name):
+    #evaluation of structure completeness
+    print("Completeness evaluation start !!!")
+    nodes_list = get_node_labels(graph_name)
+    edges_list = get_edge_labels(graph_name)
+    for node in nodes_list:
+        execute(f"""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE  table_name   = '{node}'
+        );
+        """)
+        exists = cur.fetchone()[0]
+        if exists:
+            print(f"Table \"{node}\" exists.")
+            props = get_node_property_names(graph_name,node)
+            for prop in props:
+                cur.execute(f"""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns 
+                    WHERE table_name   = '{node}' 
+                    AND column_name = '{prop}'
+                );
+            """)
+                exists = cur.fetchone()[0]
+                if exists:
+                    print(f"Column '{prop}' exists in the Table \"{node}\".")
+                else:
+                    print(f"Column '{prop}' does not exist in the Table \"{node}\".")
+        else:
+            print(f"Table \"{node}\" does not exist.")
+    print("\nNodes completeness evaluation complete !!!\n")
+    for edge in edges_list:
+        e_label = edge['e_label']
+        s_label = edge['s_label']
+        t_label = edge['t_label']
+        execute(f"""
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE  table_name   = '{e_label}'
+        );
+        """)
+        exists = cur.fetchone()[0]
+        if exists:
+            print(f"Table \"{e_label}\" exists.")
+            props = get_edge_property_names( graph_name,e_label)
+            cur.execute(f"""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns 
+                    WHERE table_name   = '{e_label}' 
+                    AND column_name = '{s_label}(s)'
+                );
+            """)
+            exists1 = cur.fetchone()[0]
+            if exists1:
+                print(f"Column '{s_label}(s)' exists in the Table \"{e_label}\".")
+            else:
+                print(f"Column '{s_label}(s)' does not exist in the Table \"{e_label}\".")
+            cur.execute(f"""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns 
+                    WHERE table_name   = '{e_label}' 
+                    AND column_name = '{t_label}(t)'
+                );
+            """)
+            exists1 = cur.fetchone()[0]
+            if exists1:
+                print(f"Column '{t_label}(t)' exists in the Table \"{e_label}\".")
+            else:
+                print(f"Column '{t_label}(t)' does not exist in the Table \"{e_label}\".")
+            for prop in props:
+                cur.execute(f"""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns 
+                    WHERE table_name   = '{e_label}' 
+                    AND column_name = '{prop}'
+                );
+            """)
+                exists = cur.fetchone()[0]
+                if exists:
+                    print(f"Column '{prop}' exists in the Table \"{e_label}\".")
+                else:
+                    print(f"Column '{prop}' does not exist in the Table \"{e_label}\".")
+        else:
+            print(f"Table \"{e_label}\" does not exist.")
+    print("\nEdges completeness evaluation complete !!!\n")
+    print("Translation structure completeness evaluation complete !!!")
+
+def get_num_from_table(table):
+    query = f"SELECT COUNT(*) FROM \"{table}\";"
+    execute(query)
+    rows = cur.fetchall()
+    return int(rows[0][0])
+
+def get_column(table,column,id):
+    query = f"SELECT a.{column} FROM \"{table}\" a WHERE a.ID = {id};"
+    execute(query)
+    rows = cur.fetchall()
+    return rows[0][0]
+    
+def accuracy_eval(graph):
+    print("Accuracy evalutation start !!!\n")
+    nodes_list = get_node_labels(graph)
+    edges_list = get_edge_labels(graph)
+    error_node_list = []
+    error_edge_list = []
+    for node in nodes_list:
+        n_node = get_num_node_label(graph,node)
+        n_table = get_num_from_table(node)
+        if n_node == n_table:
+            print(f"Number of node {node} transformation correct:{n_node} !!!")
+            nodes = get_nodes(graph,node)
+            for i in range(n_node):
+                js = njson_processor(nodes[i][0])
+                props = list(js['properties'].keys())
+                ID = js['id']
+                for prop in props:
+                    temp = get_column(node,prop,ID)
+                    if not temp == js['properties'][prop]:
+                        error_node_list.append(ID)
+                        print(f"Node {node} ID {ID} data transformation incorrect !!!")
+        else:
+            print(f"Number of node {node} transformation incorrect !!!")
+    print("\nNodes accuracy evaluation complete !!!\n")
+    for edge in edges_list:
+        e_label = edge['e_label']
+        s_label = edge['s_label']
+        t_label = edge['t_label']
+        n_edge = get_num_edge_label(graph,e_label)
+        n_table = get_num_from_table(e_label)
+        if n_edge == n_table:
+            print(f"Number of edge {e_label} transformation correct:{n_edge} !!!")
+            edges = get_edges(graph,e_label)
+            for i in range(n_edge):
+                js = ejson_processor(edges[i][0])
+                props = list(js['properties'].keys())
+                ID = js['id']
+                s_id = js['start_id']
+                t_id = js['end_id']
+                query = f"SELECT a.\"{s_label}(s)\" FROM \"{e_label}\" a WHERE a.ID = {ID};"
+                execute(query)
+                res_s = cur.fetchall()[0][0]
+                query = f"SELECT a.\"{t_label}(t)\" FROM \"{e_label}\" a WHERE a.ID = {ID};"
+                execute(query)
+                res_t = cur.fetchall()[0][0]
+                if not res_s == s_id and res_t == t_id:
+                    error_node_list.append(ID)
+                    print(f"Edge {e_label} ID {ID} data transformation incorrect !!!")
+                for prop in props:
+                    temp = get_column(e_label,prop,ID)
+                    if not temp == js['properties'][prop]:
+                        error_node_list.append(ID)
+                        print(f"Edge {e_label} ID {ID} data transformation incorrect !!!")
+        else:
+            print(f"Number of edge {e_label} transformation incorrect !!!")
+    print("\nEdges completeness evaluation complete !!!\n")
+    print("Accuracy evaluation complete !!!")
