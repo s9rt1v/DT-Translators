@@ -302,9 +302,9 @@ class CypherToSqlVisitor(CypherVisitor):
                     if 'properties' in list(edge.keys()):
                         for p in edge['properties']:
                             if self.recursive_where == '':
-                                self.recursive_where = f"WHERE {edge_name}.{p['key']} = {p['value']}"
+                                self.recursive_where = f"WHERE {edge_name}.{p['key']} = {p['value']} "
                             else:
-                                self.recursive_where = f"{self.recursive_where} AND {edge_name}.{p['key']} = {p['value']}"
+                                self.recursive_where = f"{self.recursive_where} AND {edge_name}.{p['key']} = {p['value']} "
                     self.recursion = f"SELECT temp_query.\"end\",{edge_name}.\"{node_s['label']}(t)\", temp_query.edge||{edge_name} ,temp_query.path || ARRAY[{edge_name}.ID,{edge_name}.\"{node_s['label']}(t)\"], temp_query.depth + 1 FROM \"{edge['label']}\" {edge_name}, recursive_query temp_query WHERE temp_query.\"end\" = {edge_name}.\"{node_s['label']}(s)\""
                     if len(self.rangeList)>1:
                         if self.rangeList[1]:
@@ -315,10 +315,13 @@ class CypherToSqlVisitor(CypherVisitor):
     def recursiveFromAdjustor(self):
         tables = self.from_clause.split(",")
         self.from_clause = ''
+        table_remove = []
         for table in tables:
             for edge in self.recursiveEdge:
                 if f"\"{edge['label']}\" {edge['name']}" in table:
-                    tables.remove(table)
+                    table_remove.append(table)
+        for table in table_remove:
+            tables.remove(table)
         for table in tables:
             if 'FROM' in table:
                 self.from_clause = f"{table}"
@@ -330,17 +333,19 @@ class CypherToSqlVisitor(CypherVisitor):
     def recursiveWhereAdjustor(self):
         conditions =  self.where_clause.split("AND")
         self.where_clause = ''
+        condition_to_remove = []
         for condition in conditions:
             for edge in self.recursiveEdge:
-                len_name = len(edge['name'])
                 if f" {edge['name']}." in condition:
-                    
                     if not condition in self.recursive_where:
                         if self.recursive_where == '':
                             self.recursive_where = f"WHERE{condition}"
                         else:
                             self.recursive_where = f"{self.recursive_where} AND{condition}"
-                    conditions.remove(condition)
+                    condition_to_remove.append(condition)
+        for condition in condition_to_remove:
+            conditions.remove(condition)
+            
         for condition in conditions:
             if 'WHERE' in condition:
                 self.where_clause = condition
