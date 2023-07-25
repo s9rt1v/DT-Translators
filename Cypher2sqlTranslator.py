@@ -186,8 +186,10 @@ class CypherToSqlVisitor(CypherVisitor):
     # Visit a parse tree produced by CypherParser#oC_Return.
     def visitOC_Return(self, ctx: CypherParser.OC_ReturnContext):
         items = ctx.oC_ProjectionBody().oC_ProjectionItems().getText()
-        
-        self.select = f'SELECT DISTINCT {items} '
+        if 'DISTINCT' in ctx.oC_ProjectionBody().getText():
+            self.select = f'SELECT DISTINCT {items} '
+        else:
+            self.select = f'SELECT {items} '
         return self.visitChildren(ctx)
 
     def visitOC_Limit(self, ctx:CypherParser.OC_LimitContext):
@@ -295,6 +297,20 @@ class CypherToSqlVisitor(CypherVisitor):
                     elif self.rangeList:
                         self.recursion = f"{self.recursion} AND temp_query.depth <= {self.rangeList[0]}"
                         
+    def recursiveFromAdjustor(self):
+        tables = self.from_clause.split(",")
+        self.from_clause = ''
+        for table in tables:
+            for edge in self.recursiveEdge:
+                if f"\"{edge['label']}\" {edge['name']}" in table:
+                    tables.remove(table)
+        for table in tables:
+            if 'FROM' in table:
+                self.from_clause = f"{table}"
+            else:
+                self.from_clause = f"{self.from_clause}, {table}"
+        if 'FROM' not in self.from_clause:
+            self.from_clause = f"FROM {self.from_clause}"
             
     def recursiveWhereAdjustor(self):
         conditions =  self.where_clause.split("AND")
@@ -336,6 +352,7 @@ class CypherToSqlVisitor(CypherVisitor):
         self.conditionAdder()
         self.fromAdder()
         self.selectAdder()
+        self.recursiveFromAdjustor()
         self.recursiveWhereAdjustor()
         self.non_recursion = f"{self.recursive_select} FROM \"{self.recursiveEdge[0]['label']}\" {self.recursiveEdge[0]['name']} {self.recursive_where}"
         self.rt = f"{self.select}{self.from_clause}, recursive_query {self.path_name} {self.where_clause}{self.rt}"
