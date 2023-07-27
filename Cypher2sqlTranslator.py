@@ -195,7 +195,7 @@ class CypherToSqlVisitor(CypherVisitor):
             name = item.oC_Expression().getText()
             val = ''
             if self.recursiveEdge[0]:
-                if name == self.recursiveEdge[0]['name']:
+                if name.split('.')[0] == self.recursiveEdge[0]['name']:
                     name = f"{self.path_name}.edge"
                 elif name == self.path_name:
                     name = f"{self.path_name}.path"
@@ -326,7 +326,7 @@ class CypherToSqlVisitor(CypherVisitor):
             if 'FROM' in table:
                 self.from_clause = f"{table}"
             else:
-                self.from_clause = f"{self.from_clause}, {table}"
+                self.from_clause = f"{self.from_clause},{table}"
         if 'FROM' not in self.from_clause:
             self.from_clause = f"FROM {self.from_clause}"
             
