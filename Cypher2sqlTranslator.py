@@ -198,7 +198,7 @@ class CypherToSqlVisitor(CypherVisitor):
             for item in ctx.oC_ProjectionBody().oC_ProjectionItems().oC_ProjectionItem():
                 name = item.oC_Expression().getText()
                 val = ''
-                if self.recursiveEdge[0]:
+                if self.recursiveEdge:
                     if name.split('.')[0] == self.recursiveEdge[0]['name']:
                         name = f"{self.path_name}.edge"
                     elif name == self.path_name:
