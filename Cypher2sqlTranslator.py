@@ -191,20 +191,24 @@ class CypherToSqlVisitor(CypherVisitor):
             self.select = 'SELECT DISTINCT '
         else:
             self.select = 'SELECT '
-        for item in ctx.oC_ProjectionBody().oC_ProjectionItems().oC_ProjectionItem():
-            name = item.oC_Expression().getText()
-            val = ''
-            if self.recursiveEdge[0]:
-                if name.split('.')[0] == self.recursiveEdge[0]['name']:
-                    name = f"{self.path_name}.edge"
-                elif name == self.path_name:
-                    name = f"{self.path_name}.path"
-            if item.oC_Variable():
-                val = f' AS {item.oC_Variable().getText()}'
-            if self.select == 'SELECT ' or self.select == 'SELECT DISTINCT ':
-                self.select = f"{self.select}{name}{val} "
-            else:
-                self.select = f"{self.select}, {name}{val} "
+            
+        if items == '*':
+            self.select = f"{self.select}* "
+        else:
+            for item in ctx.oC_ProjectionBody().oC_ProjectionItems().oC_ProjectionItem():
+                name = item.oC_Expression().getText()
+                val = ''
+                if self.recursiveEdge[0]:
+                    if name.split('.')[0] == self.recursiveEdge[0]['name']:
+                        name = f"{self.path_name}.edge"
+                    elif name == self.path_name:
+                        name = f"{self.path_name}.path"
+                if item.oC_Variable():
+                    val = f' AS {item.oC_Variable().getText()}'
+                if self.select == 'SELECT ' or self.select == 'SELECT DISTINCT ':
+                    self.select = f"{self.select}{name}{val} "
+                else:
+                    self.select = f"{self.select}, {name}{val} "
         return self.visitChildren(ctx)
 
     def visitOC_Limit(self, ctx:CypherParser.OC_LimitContext):
