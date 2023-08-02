@@ -467,5 +467,5 @@ def accuracy_eval(graph):
                         print(f"Edge {e_label} ID {ID} data transformation incorrect !!!")
         else:
             print(f"Number of edge {e_label} transformation incorrect !!!")
-    print("\nEdges completeness evaluation complete !!!\n")
+    print("\nEdges accuracy evaluation complete !!!\n")
     print("Accuracy evaluation complete !!!")
