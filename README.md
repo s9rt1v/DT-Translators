@@ -1,5 +1,6 @@
 # DT-Translators
 The the two files of translators are model_translator.py and Cypher2sqlTranslator.py
+The tests of two translators require users to install age extension in Postgres database to use Cypher correctly, the instruction of install age extension has been provided in https://age.apache.org/, if you haven't configged it, please follow the installation guide. 
 Please make sure you have installed python in your computer
 In addition to python, please install antlr4 by using the below code in terminal
 <pre>
