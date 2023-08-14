@@ -330,7 +330,7 @@ def completeness_evaluation(graph_name):
                     SELECT 1
                     FROM information_schema.columns 
                     WHERE table_name   = '{node}' 
-                    AND column_name = '{prop}'
+                    AND column_name = '{prop.lower()}'
                 );
             """)
                 exists = cur.fetchone()[0]
@@ -387,7 +387,7 @@ def completeness_evaluation(graph_name):
                     SELECT 1
                     FROM information_schema.columns 
                     WHERE table_name   = '{e_label}' 
-                    AND column_name = '{prop}'
+                    AND column_name = '{prop.lower()}'
                 );
             """)
                 exists = cur.fetchone()[0]
